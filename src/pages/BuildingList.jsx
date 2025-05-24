@@ -94,7 +94,7 @@ function BuildingCard({ building }) {
       <div className={styles.infoBottom}>
         <div className={styles.metrics}>
           <p>
-            웨이포인트 수: <strong>{waypointCount}</strong>
+            균열 수: <strong>{waypointCount}</strong>
           </p>
           <p>
             최대 균열 폭: <strong>{maxWidth} mm</strong>

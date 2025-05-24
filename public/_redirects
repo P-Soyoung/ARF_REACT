@@ -1,0 +1,6 @@
+# API 요청은 서버로 보내기 (Netlify에 있지 않다는 가정)
+# Netlify는 이 요청을 리디렉션하지 않음
+/api/*   https://3.37.127.247:8080/:splat   200
+
+# 나머지는 전부 SPA index.html 처리
+/*       /index.html   200

@@ -1,6 +1,7 @@
 .dropdown {
   position: relative;
   width: 200px;
+  font-weight: medium;
   font-size: 0.95rem;
 }
 

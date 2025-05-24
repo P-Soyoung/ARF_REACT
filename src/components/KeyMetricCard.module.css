@@ -23,9 +23,9 @@
 
 .inspectionDate {
   position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  font-size: 0.65rem;
+  top: 1rem;
+  left: 0.85rem;
+  font-size: 0.9rem;
   color: #666;
   font-weight: 500;
   font-family: Pretendard;

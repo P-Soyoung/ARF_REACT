@@ -26,7 +26,7 @@ export default function Sidebar() {
       {/* 건물 통계 링크 */}
       <div
         className={`${styles.logo} ${
-          location.pathname === "/building/1" ? styles.active : ""
+          location.pathname.startsWith("/building/") ? styles.active : ""
         }`}
       >
         <Link to="/building/1">

@@ -171,29 +171,46 @@
 }
 
 .severityButton {
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 12px;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px; /* Pill shape */
+  font-size: 0.8rem;
   font-weight: 600;
+  color: white;
   border: none;
   cursor: pointer;
-  white-space: nowrap;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  min-width: 52px;
-  text-align: center;
+  flex-shrink: 0; /* Prevent shrinking */
+  line-height: normal; /* Ensure consistent line height */
 }
 
 .severityHigh {
   background-color: #e73c3c;
-  color: white;
 }
 
 .severityMedium {
-  background-color: #5e5ae6;
-  color: white;
+  background-color: #ffdc3e;
+  color: white; /* Change text color to white */
 }
 
 .severityLow {
   background-color: #66cc66;
-  color: white;
+}
+
+.crackTypeTag {
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px; /* Pill shape */
+  font-size: 0.8rem;
+  font-weight: 600;
+  background-color: #8800ff; /* Light gray background */
+  color: #fff; /* Dark text */
+  flex-shrink: 0; /* Prevent shrinking */
+  line-height: normal; /* Ensure consistent line height */
+  margin-left: 8px; /* Add space to the left */
+}
+
+.rightSection {
+  /* Add a container for the buttons */
+  display: flex;
+  align-items: center;
+  gap: 8px; /* Space between buttons */
+  flex-shrink: 0;
 }

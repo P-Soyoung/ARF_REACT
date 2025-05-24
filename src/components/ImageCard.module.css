@@ -67,7 +67,7 @@
   cursor: pointer;
   outline: none;
   transition: border-color 0.2s;
-  min-width: 120px;
+  min-width: 150px;
   -webkit-appearance: none; /* Safari에서 기본 스타일 제거 */
   -moz-appearance: none; /* Firefox에서 기본 스타일 제거 */
   appearance: none; /* 표준 */
@@ -83,13 +83,22 @@
   box-shadow: none;
 }
 
-/* 드롭다운 화살표 커스텀 스타일 */
 .dateSelect {
-  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23333%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background-color: #fff;
+  color: #333;
+  appearance: none;
+
+  /* 드롭다운 화살표 커스터마이징 (선택사항) */
+  background-image: url("/arrow-down.svg");
   background-repeat: no-repeat;
-  background-position: right 0.7rem top 50%;
-  background-size: 0.65rem auto;
-  padding-right: 2rem;
+  background-position: right 1rem center;
+  background-size: 1rem;
+
+  cursor: pointer;
 }
 
 .selectedDateInfo {

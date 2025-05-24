@@ -19,7 +19,6 @@ export default function Header() {
       <header className={styles.header}>
         <div className={styles.headerContent}>
           {/* BuildingDisplay 표시 - 이 컴포넌트는 오직 crack/[id] 페이지에서만 사용됨 */}
-          <BuildingDisplay buildingId={buildingId} />
         </div>
       </header>
     </div>

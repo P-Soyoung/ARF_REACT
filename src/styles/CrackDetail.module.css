@@ -6,6 +6,7 @@
   overflow: hidden;
   max-width: 100%;
   box-sizing: border-box;
+  background-color: #f7f7fb;
 }
 
 .contentContainer {
@@ -146,4 +147,9 @@
   margin: 5px 0 0 0;
   font-size: 14px;
   color: #666;
+}
+
+.buildingSelector {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
 }

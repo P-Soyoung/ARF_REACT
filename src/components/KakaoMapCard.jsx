@@ -52,7 +52,7 @@ export default function KakaoMapCard({ buildingId, buildingData }) {
     // 카카오맵 API 스크립트 로드
     const script = document.createElement("script");
     script.async = true;
-    script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_API_KEY}&autoload=false`;
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_API_KEY}&autoload=false`;
 
     let mapLoadingTimeout = setTimeout(() => {
       setMapUnavailable(true);

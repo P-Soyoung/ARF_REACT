@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
-import Header from "../components/Header";
+import { useParams, useNavigate } from "react-router-dom";
+import CustomDropdown from "../components/CustomDropdown";
 import { API_BASE_URL } from "../config/api";
 
 import styles from "../styles/CrackDetail.module.css";
@@ -12,19 +12,20 @@ import RiskRankingCard from "../components/RiskRankingCard";
 
 function CrackDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
+
   const [building, setBuilding] = useState(null);
+  const [allBuildings, setAllBuildings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // 현재 건물 데이터 로드
   useEffect(() => {
     if (!id) return;
-
-    // 데이터 가져오기 (프록시를 통하지 않고 직접 호출)
+    setLoading(true);
     fetch(`${API_BASE_URL}/buildings/${id}`)
       .then((res) => {
-        if (!res.ok) {
-          throw new Error("건물 데이터를 불러오는 데 실패했습니다");
-        }
+        if (!res.ok) throw new Error("건물 데이터를 불러오는 데 실패했습니다");
         return res.json();
       })
       .then((data) => {
@@ -38,11 +39,25 @@ function CrackDetail() {
       });
   }, [id]);
 
+  // 전체 건물 목록 로드
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/buildings`)
+      .then((res) => res.json())
+      .then((data) => setAllBuildings(data))
+      .catch((err) => console.error("건물 목록 로딩 실패:", err));
+  }, []);
+
+  const handleBuildingChange = (newId) => {
+    if (newId && newId !== id) {
+      navigate(`/building/${newId}`);
+    }
+  };
+
   if (loading) {
     return (
       <div className={styles.container}>
         <div className={styles.contentContainer}>
-          <Header />
+          <div className={styles.loading}>로딩 중...</div>
         </div>
       </div>
     );
@@ -52,7 +67,6 @@ function CrackDetail() {
     return (
       <div className={styles.container}>
         <div className={styles.contentContainer}>
-          <Header />
           <div className={styles.error}>{error}</div>
         </div>
       </div>
@@ -62,10 +76,20 @@ function CrackDetail() {
   return (
     <div className={styles.container}>
       <div className={styles.contentContainer}>
-        <Header />
+        {/* 상단 드롭다운으로 건물 선택 */}
+        <div className={styles.buildingSelector}>
+          <CustomDropdown
+            value={id}
+            onChange={handleBuildingChange}
+            options={allBuildings.map((b) => ({
+              value: b.id,
+              label: b.name,
+            }))}
+          />
+        </div>
+
         <main className={styles.main}>
           <div className={styles.dashboardGrid}>
-            {/* 1행: 카카오맵(1,1), 이미지(1,2~3) */}
             <div
               className={styles.gridItem}
               style={{ gridColumn: "1", gridRow: "1" }}
@@ -78,8 +102,6 @@ function CrackDetail() {
             >
               <ImageCard buildingId={id} buildingData={building} />
             </div>
-
-            {/* 2행: 그래프(2,1), 순위(2,2), 키매트릭(2,3) */}
             <div
               className={styles.gridItem}
               style={{ gridColumn: "1", gridRow: "2" }}
@@ -98,11 +120,6 @@ function CrackDetail() {
             >
               <KeyMetricCard buildingId={id} buildingData={building} />
             </div>
-          </div>
-          <div className={styles.disclaimerText}>
-            <img src="/warning.svg" alt="경고" className={styles.warningIcon} />
-            본 정보는 판단을 돕기 위한 참고용으로 제공되며, 실제 점검 또는
-            조치는 전문가의 판단에 따라 수행되어야 합니다.
           </div>
         </main>
       </div>

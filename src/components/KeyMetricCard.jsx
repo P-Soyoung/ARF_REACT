@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import styles from "./KeyMetricCard.module.css";
-
 import { API_BASE_URL } from "../config/api";
 
 function KeyMetricCard({ buildingId, buildingData: propsBuildingData }) {
@@ -15,7 +14,6 @@ function KeyMetricCard({ buildingId, buildingData: propsBuildingData }) {
       return;
     }
 
-    // 부모 컴포넌트로부터 전달받은 데이터가 있으면 사용
     if (propsBuildingData) {
       setBuildingData(propsBuildingData);
       calculateMetrics(propsBuildingData);
@@ -23,16 +21,12 @@ function KeyMetricCard({ buildingId, buildingData: propsBuildingData }) {
       return;
     }
 
-    // 전달받은 데이터가 없는 경우에만 API 요청
     setLoading(true);
 
-    // 건물 데이터 가져오기
     fetch(`${API_BASE_URL}/buildings/${buildingId}`)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("건물 데이터를 불러오는 데 실패했습니다");
-        }
-        return response.json();
+      .then((res) => {
+        if (!res.ok) throw new Error("건물 데이터를 불러오는 데 실패했습니다");
+        return res.json();
       })
       .then((data) => {
         setBuildingData(data);
@@ -45,22 +39,18 @@ function KeyMetricCard({ buildingId, buildingData: propsBuildingData }) {
       });
   }, [buildingId, propsBuildingData]);
 
-  // 건물 데이터에서 메트릭 계산
   const calculateMetrics = (data) => {
     if (!data || !data.waypoints) {
       setMetrics([]);
       return;
     }
 
-    // 날짜별 균열 정보 분류
     const cracksByDate = {};
     let latestDate = null;
 
-    // 모든 웨이포인트 순회하며 날짜별 균열 정보 수집
     data.waypoints.forEach((waypoint) => {
       if (waypoint.cracks && waypoint.cracks.length > 0) {
         waypoint.cracks.forEach((crack) => {
-          // timestamp 필드 사용
           if (!crack.timestamp || isNaN(new Date(crack.timestamp))) return;
           const crackDate = new Date(crack.timestamp);
           const dateStr = crack.timestamp;
@@ -72,16 +62,12 @@ function KeyMetricCard({ buildingId, buildingData: propsBuildingData }) {
             };
           }
 
-          // 해당 날짜에 웨이포인트 ID 추가
           cracksByDate[dateStr].waypointIds.add(waypoint.id);
-
-          // 최대 균열 폭 업데이트
           cracksByDate[dateStr].maxWidth = Math.max(
             cracksByDate[dateStr].maxWidth,
             crack.widthMm || 0
           );
 
-          // 가장 최근 점검일 업데이트
           if (!latestDate || crackDate > latestDate) {
             latestDate = crackDate;
           }
@@ -90,33 +76,28 @@ function KeyMetricCard({ buildingId, buildingData: propsBuildingData }) {
     });
 
     setLastInspection(latestDate ? latestDate.toISOString() : null);
-    // 날짜별 정보를 날짜순으로 정렬
+
     const sortedDates = Object.keys(cracksByDate).sort(
       (a, b) => new Date(b) - new Date(a)
     );
 
-    // 마지막 점검일과 이전 점검일 정보
     const latestDateStr = sortedDates[0] || null;
     const previousDateStr = sortedDates[1] || null;
 
-    // 마지막 점검일 균열 수
     const latestCrackCount = latestDateStr
       ? cracksByDate[latestDateStr].waypointIds.size
       : 0;
 
-    // 최대 균열 폭 (마지막 점검일 기준)
     const latestMaxWidth = latestDateStr
       ? cracksByDate[latestDateStr].maxWidth
       : 0;
 
-    // 균열 수 변화량 계산 (마지막 점검일과 이전 점검일 비교)
     let crackCountChange = 0;
     if (latestDateStr && previousDateStr) {
       const previousCrackCount = cracksByDate[previousDateStr].waypointIds.size;
       crackCountChange = latestCrackCount - previousCrackCount;
     }
 
-    // 메트릭 설정
     setMetrics([
       {
         id: "crack_count",
@@ -136,9 +117,7 @@ function KeyMetricCard({ buildingId, buildingData: propsBuildingData }) {
           </svg>
         ),
         label: "전체 균열 수",
-
         value: latestCrackCount,
-
         unit: "개",
         change: null,
         changeType: null,
@@ -161,9 +140,7 @@ function KeyMetricCard({ buildingId, buildingData: propsBuildingData }) {
           </svg>
         ),
         label: "최대 균열 폭",
-
         value: latestMaxWidth,
-
         unit: "mm",
         change: null,
         changeType: null,
@@ -217,24 +194,37 @@ function KeyMetricCard({ buildingId, buildingData: propsBuildingData }) {
 
       <div className={styles.metricsContainer}>
         {metrics.map((metric) => (
-          <div key={metric.id} className={styles.metricItem}>
-            <div className={styles.metricIcon}>{metric.icon}</div>
+          <div
+            key={metric.id}
+            className={
+              metric.id === "crack_type_distribution"
+                ? `${styles.metricItem} ${styles.donutMetricItem}`
+                : styles.metricItem
+            }
+          >
+            {metric.id === "crack_type_distribution" ? (
+              <div className={styles.donutPlaceholder}>{metric.icon}</div>
+            ) : (
+              <div className={styles.metricIcon}>{metric.icon}</div>
+            )}
             <div className={styles.metricContent}>
-              <div className={styles.metricValue}>
-                {metric.value}
-                {metric.unit && (
-                  <span className={styles.unit}>{metric.unit}</span>
-                )}
-                {metric.change && (
-                  <span
-                    className={`${styles[metric.changeType]}`}
-                    style={{ fontSize: "0.8rem", marginLeft: "0.5rem" }}
-                  >
-                    {metric.changeType === "increase" ? "+" : ""}
-                    {Math.abs(metric.change)}
-                  </span>
-                )}
-              </div>
+              {metric.value !== null && (
+                <div className={styles.metricValue}>
+                  {metric.value}
+                  {metric.unit && (
+                    <span className={styles.unit}>{metric.unit}</span>
+                  )}
+                  {metric.change && (
+                    <span
+                      className={`${styles[metric.changeType]}`}
+                      style={{ fontSize: "0.8rem", marginLeft: "0.5rem" }}
+                    >
+                      {metric.changeType === "increase" ? "+" : ""}
+                      {Math.abs(metric.change)}
+                    </span>
+                  )}
+                </div>
+              )}
               <div className={styles.metricLabel}>{metric.label}</div>
             </div>
           </div>

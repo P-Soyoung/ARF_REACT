@@ -232,11 +232,11 @@ export default function VWorldMaps({
       case "RED":
         iconColor = "#FF0000";
         break;
-      case "ORANGE":
+      case "Yellow":
         iconColor = "#FFA500";
         break;
-      case "YELLOW":
-        iconColor = "#FFFF00";
+      case "Green":
+        iconColor = "#00FF00";
         break;
       case "LIME":
         iconColor = "#00FF00";
@@ -565,15 +565,14 @@ export default function VWorldMaps({
             width = latestCrack.widthMm || 0;
 
             // 균열 폭에 따른 심각도 결정
-            if (width >= 1.5) {
-              severity = "RED"; // 심각
-            } else if (width >= 0.8) {
-              severity = "ORANGE"; // 중간
+            if (width >= 1.0) {
+              severity = "RED";
+            } else if (width >= 0.3) {
+              severity = "Yellow";
             } else {
-              severity = "YELLOW"; // 경미
+              severity = "Green";
             }
           }
-
           // 웨이포인트 원래 높이 사용 (높이 추가하지 않음)
           const waypointAltitude = waypoint.location.altitude || 10;
 

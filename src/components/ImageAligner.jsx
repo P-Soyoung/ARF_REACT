@@ -170,72 +170,132 @@ const ImageAligner = forwardRef(function ImageAligner(
       const imageData2 = ctx2.getImageData(0, 0, canvas2.width, canvas2.height);
 
       const code = `
-      self.importScripts('https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.7.0-release.1/dist/opencv.js');
-      function waitForCV() {
-        return new Promise(resolve => {
-          const check = () => typeof cv !== 'undefined' && cv.Mat ? resolve() : setTimeout(check, 100);
-          check();
-        });
-      }
-      self.onmessage = async ({ data }) => {
-        await waitForCV();
-        const { img1Data, img2Data, width, height } = data;
-        const mat1 = cv.matFromImageData(new ImageData(new Uint8ClampedArray(img1Data), width, height));
-        const mat2 = cv.matFromImageData(new ImageData(new Uint8ClampedArray(img2Data), width, height));
-        const gray1 = new cv.Mat();
-        const gray2 = new cv.Mat();
-        cv.cvtColor(mat1, gray1, cv.COLOR_RGBA2GRAY);
-        cv.cvtColor(mat2, gray2, cv.COLOR_RGBA2GRAY);
-        const orb = new cv.ORB(2000);
-        const kp1 = new cv.KeyPointVector();
-        const kp2 = new cv.KeyPointVector();
-        const des1 = new cv.Mat();
-        const des2 = new cv.Mat();
-        orb.detectAndCompute(gray1, new cv.Mat(), kp1, des1);
-        orb.detectAndCompute(gray2, new cv.Mat(), kp2, des2);
-        const bf = new cv.BFMatcher(cv.NORM_HAMMING);
-        const knn = new cv.DMatchVectorVector();
-        bf.knnMatch(des1, des2, knn, 2);
-        const good = new cv.DMatchVector();
-        for (let i = 0; i < knn.size(); i++) {
-          const m = knn.get(i).get(0);
-          const n = knn.get(i).get(1);
-          if (m.distance < 0.75 * n.distance) good.push_back(m);
+self.importScripts('https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.7.0-release.1/dist/opencv.js');
+
+function waitForCV() {
+    return new Promise(resolve => {
+        const check = () => (typeof cv !== 'undefined' && cv.Mat) ? resolve() : setTimeout(check, 100);
+        check();
+    });
+}
+
+self.onmessage = async ({ data }) => {
+    await waitForCV();
+    const { img1Data, img2Data, width, height } = data;
+
+    // 1. ImageData → Mat
+    let mat1 = cv.matFromImageData(new ImageData(new Uint8ClampedArray(img1Data), width, height));
+    let mat2 = cv.matFromImageData(new ImageData(new Uint8ClampedArray(img2Data), width, height));
+
+    // 2. (옵션) 해상도 축소
+    if (width * height > 1024 * 1024) {
+        const newW = Math.round(width * 0.75);
+        const newH = Math.round(height * 0.75);
+        const tmp1 = new cv.Mat(), tmp2 = new cv.Mat();
+        cv.resize(mat1, tmp1, new cv.Size(newW, newH));
+        cv.resize(mat2, tmp2, new cv.Size(newW, newH));
+        mat1.delete(); mat2.delete();
+        mat1 = tmp1; mat2 = tmp2;
+    }
+
+    // 3. 그레이 변환
+    const gray1 = new cv.Mat(), gray2 = new cv.Mat();
+    cv.cvtColor(mat1, gray1, cv.COLOR_RGBA2GRAY);
+    cv.cvtColor(mat2, gray2, cv.COLOR_RGBA2GRAY);
+
+    // 4. ORB 특징점 제한
+    const orb = new cv.ORB(500);
+    const kp1 = new cv.KeyPointVector(), des1 = new cv.Mat();
+    const kp2 = new cv.KeyPointVector(), des2 = new cv.Mat();
+    orb.detectAndCompute(gray1, new cv.Mat(), kp1, des1);
+    orb.detectAndCompute(gray2, new cv.Mat(), kp2, des2);
+
+    // 5. BFMatcher + ratio test
+    const bf = new cv.BFMatcher(cv.NORM_HAMMING, false);
+    const matches = new cv.DMatchVectorVector();
+    bf.knnMatch(des2, des1, matches, 2);
+    const good = [];
+    for (let i = 0; i < matches.size(); i++) {
+        const m = matches.get(i).get(0);
+        const n = matches.get(i).get(1);
+        if (m.distance < 0.8 * n.distance) good.push(m);
+    }
+    if (good.length < 4) {
+        self.postMessage({ success: false, error: '매칭 포인트 부족' });
+        // 메모리 해제...
+        gray1.delete(); gray2.delete(); kp1.delete(); des1.delete();
+        kp2.delete(); des2.delete(); orb.delete(); bf.delete(); matches.delete();
+        mat1.delete(); mat2.delete();
+        return;
+    }
+
+    // 6. 호모그래피 계산
+    const pts1 = new Float32Array(good.length * 2), pts2 = new Float32Array(good.length * 2);
+    for (let i = 0; i < good.length; i++) {
+        const m = good[i];
+        const p1 = kp1.get(m.trainIdx).pt, p2 = kp2.get(m.queryIdx).pt;
+        pts1[2*i]=p1.x; pts1[2*i+1]=p1.y;
+        pts2[2*i]=p2.x; pts2[2*i+1]=p2.y;
+    }
+    const matPts1 = cv.matFromArray(good.length, 1, cv.CV_32FC2, pts1);
+    const matPts2 = cv.matFromArray(good.length, 1, cv.CV_32FC2, pts2);
+    const H = cv.findHomography(matPts2, matPts1, cv.RANSAC, 3.0);
+
+    // 7. 두 번째 이미지 정렬
+    const aligned = new cv.Mat();
+    cv.warpPerspective(mat2, aligned, H, new cv.Size(mat1.cols, mat1.rows));
+
+    // 8. 차이 → 이진화
+    const diff = new cv.Mat(), grayDiff = new cv.Mat();
+    cv.absdiff(mat1, aligned, diff);
+    cv.cvtColor(diff, grayDiff, cv.COLOR_RGBA2GRAY);
+    const mask = new cv.Mat();
+    cv.threshold(grayDiff, mask, 50, 255, cv.THRESH_BINARY);
+
+    // --- 여기부터 추가된 부분: Region Mask 생성 & 결합 ---
+    // 9.1. aligned된 영역만 흰색(255)이 되는 마스크 생성
+    const alignedGray = new cv.Mat();
+    cv.cvtColor(aligned, alignedGray, cv.COLOR_RGBA2GRAY);
+    const regionMask = new cv.Mat();
+    cv.threshold(alignedGray, regionMask, 0, 255, cv.THRESH_BINARY);
+    alignedGray.delete();
+
+    // 9.2. 두 마스크(bitwise AND): 차이는 mask, 영역은 regionMask
+    cv.bitwise_and(mask, regionMask, mask);
+    regionMask.delete();
+    // --- 여기까지 ---
+
+    // 10. 결과 하이라이트 (오직 mask 안에서만)
+    const result = mat1.clone();
+    for (let y = 0; y < mask.rows; y++) {
+        for (let x = 0; x < mask.cols; x++) {
+            if (mask.ucharPtr(y, x)[0] > 0) {
+                const p = result.ucharPtr(y, x);
+                p[0] = 255; // R
+                p[1] = 0;   // G
+                p[2] = 0;   // B
+                p[3] = 255; // A
+            }
         }
-        const srcPts = [], dstPts = [];
-        for (let i = 0; i < good.size(); i++) {
-          const m = good.get(i);
-          srcPts.push(kp1.get(m.queryIdx).pt);
-          dstPts.push(kp2.get(m.trainIdx).pt);
-        }
-        const H = cv.findHomography(
-          cv.matFromArray(srcPts.length, 1, cv.CV_32FC2, [].concat(...srcPts.map(p => [p.x, p.y]))),
-          cv.matFromArray(dstPts.length, 1, cv.CV_32FC2, [].concat(...dstPts.map(p => [p.x, p.y]))),
-          cv.RANSAC, 3
-        );
-        const aligned = new cv.Mat();
-        cv.warpPerspective(mat2, aligned, H, new cv.Size(mat1.cols, mat1.rows));
-        const alignedGray = new cv.Mat();
-        cv.cvtColor(aligned, alignedGray, cv.COLOR_RGBA2GRAY);
-        const diff = new cv.Mat();
-        cv.absdiff(gray1, alignedGray, diff);
-        const mask = new cv.Mat();
-        cv.threshold(diff, mask, 30, 255, cv.THRESH_BINARY);
-        const overlay = new cv.Mat();
-        cv.cvtColor(mask, overlay, cv.COLOR_GRAY2RGBA);
-        for (let y = 0; y < overlay.rows; y++) {
-          for (let x = 0; x < overlay.cols; x++) {
-            const p = overlay.ucharPtr(y, x);
-            if (p[0] > 0) [p[0], p[1], p[2], p[3]] = [0, 0, 255, 255];
-          }
-        }
-        const result = new cv.Mat();
-        cv.addWeighted(mat1, 1, overlay, 0.5, 0, result);
-        const byteLength = mat1.cols * mat1.rows * 4;
-        const clamped = new Uint8ClampedArray(result.data.slice(0, byteLength));
-        self.postMessage({ success: true, result: { width: mat1.cols, height: mat1.rows, data: clamped.buffer } }, [clamped.buffer]);
-      };
-    `;
+    }
+
+    // 11. 결과 전송
+    const out = new Uint8ClampedArray(result.data);
+    self.postMessage(
+        { success: true, result: { width: result.cols, height: result.rows, data: out.buffer } },
+        [out.buffer]
+    );
+
+    // 12. 메모리 해제
+    mat1.delete(); mat2.delete();
+    gray1.delete(); gray2.delete();
+    kp1.delete(); des1.delete(); kp2.delete(); des2.delete();
+    orb.delete(); bf.delete(); matches.delete();
+    matPts1.delete(); matPts2.delete(); H.delete();
+    aligned.delete(); diff.delete(); grayDiff.delete(); mask.delete();
+    result.delete();
+};
+      `;
 
       const blob = new Blob([code], { type: "application/javascript" });
       const url = URL.createObjectURL(blob);
@@ -243,7 +303,7 @@ const ImageAligner = forwardRef(function ImageAligner(
       workerRef.current = worker;
 
       worker.onmessage = (e) => {
-        const { success, result } = e.data;
+        const { success, result, error } = e.data;
         if (success && result) {
           const canvas = canvasRef.current;
           canvas.width = result.width;
@@ -259,23 +319,28 @@ const ImageAligner = forwardRef(function ImageAligner(
           setStatus("처리 완료");
           isProcessing.current = false;
           resolve();
+        } else if (error) {
+          reject(new Error(error));
         }
         worker.terminate();
         URL.revokeObjectURL(url);
       };
 
       worker.onerror = (e) => {
-        reject(new Error("Worker 오류"));
+        reject(new Error("Worker 오류: " + e.message));
         worker.terminate();
         URL.revokeObjectURL(url);
       };
 
-      worker.postMessage({
-        img1Data: imageData1.data,
-        img2Data: imageData2.data,
-        width: img1.width,
-        height: img1.height,
-      });
+      worker.postMessage(
+        {
+          img1Data: imageData1.data.buffer, // Pass ArrayBuffer for transferability
+          img2Data: imageData2.data.buffer, // Pass ArrayBuffer for transferability
+          width: img1.width,
+          height: img1.height,
+        },
+        [imageData1.data.buffer, imageData2.data.buffer]
+      ); // Transferable objects
     });
 
   return (

@@ -355,7 +355,7 @@ function BuildingList() {
                       <tr key={b.id}>
                         <td>{i + 1}</td>
                         <td>{b.name}</td>
-                        <td>{b.maxWidth.toFixed(1)} mm</td>
+                        <td>{b.maxWidth.toFixed(2)} mm</td>
                       </tr>
                     ))}
                     {crackStats.sortedByWidth.length === 0 && (
@@ -377,7 +377,7 @@ function BuildingList() {
                       <tr key={b.id}>
                         <td>{i + 1}</td>
                         <td>{b.name}</td>
-                        <td>{b.avgWidth.toFixed(1)} mm</td>
+                        <td>{b.avgWidth.toFixed(2)} mm</td>
                       </tr>
                     ))}
                     {crackStats.sortedByAvgWidth.length === 0 && (

@@ -32,12 +32,21 @@ const ImagePopup = ({ imageUrl, description, onClose, metadata }) => {
 
   // 이미지 분석 모드 토글
   const toggleAnalysisMode = () => {
-    if (firstImageUrl) {
-      setAnalysisMode(!analysisMode);
-      if (!analysisMode && !alignedImageUrl) {
-        processImages();
-      }
+    if (!firstImageUrl) return;
+
+    const next = !analysisMode;
+    setAnalysisMode(next);
+
+    if (next) {
+      // 분석 모드 켤 때 매번 재분석하도록 함 (확실한 실행)
+      processImages();
+    } else {
+      // 분석 모드 끌 때 결과 초기화 (선택 사항)
+      // setAlignedImageUrl(null);
     }
+
+    // 비교 모드 끔
+    setCompareMode(false);
   };
 
   // OpenCV를 사용하여 이미지 비교 처리

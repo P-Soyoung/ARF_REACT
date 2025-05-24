@@ -105,14 +105,16 @@ const ImageAligner = forwardRef(function ImageAligner(
   };
 
   const startImageProcessing = async () => {
-    if (
-      !firstImageUrl ||
-      !currentImageUrl ||
-      isProcessing.current ||
-      firstImageUrl === currentImageUrl
-    ) {
-      onProcessed && onProcessed(firstImageUrl);
+    if (!firstImageUrl || !currentImageUrl) {
+      onProcessed && onProcessed(null);
       return;
+    }
+
+    // 분석 강제 진행 (같은 URL이어도)
+    if (firstImageUrl === currentImageUrl) {
+      console.warn(
+        "⚠️ 기준 이미지와 선택 이미지가 같습니다. 분석을 진행합니다."
+      );
     }
     if (!isOpenCVLoaded) {
       openCVLoadCallbacks.push(() => startImageProcessing());
@@ -198,78 +200,29 @@ self.onmessage = async ({ data }) => {
         mat1 = tmp1; mat2 = tmp2;
     }
 
-    // 3. 그레이 변환
+    // 3. 그레이 변환 및 이진화
     const gray1 = new cv.Mat(), gray2 = new cv.Mat();
     cv.cvtColor(mat1, gray1, cv.COLOR_RGBA2GRAY);
     cv.cvtColor(mat2, gray2, cv.COLOR_RGBA2GRAY);
 
-    // 4. ORB 특징점 제한
-    const orb = new cv.ORB(500);
-    const kp1 = new cv.KeyPointVector(), des1 = new cv.Mat();
-    const kp2 = new cv.KeyPointVector(), des2 = new cv.Mat();
-    orb.detectAndCompute(gray1, new cv.Mat(), kp1, des1);
-    orb.detectAndCompute(gray2, new cv.Mat(), kp2, des2);
+    const bin1 = new cv.Mat(), bin2 = new cv.Mat();
+    cv.threshold(gray1, bin1, 60, 255, cv.THRESH_BINARY_INV);
+    cv.threshold(gray2, bin2, 60, 255, cv.THRESH_BINARY_INV);
 
-    // 5. BFMatcher + ratio test
-    const bf = new cv.BFMatcher(cv.NORM_HAMMING, false);
-    const matches = new cv.DMatchVectorVector();
-    bf.knnMatch(des2, des1, matches, 2);
-    const good = [];
-    for (let i = 0; i < matches.size(); i++) {
-        const m = matches.get(i).get(0);
-        const n = matches.get(i).get(1);
-        if (m.distance < 0.8 * n.distance) good.push(m);
-    }
-    if (good.length < 4) {
-        self.postMessage({ success: false, error: '매칭 포인트 부족' });
-        // 메모리 해제...
-        gray1.delete(); gray2.delete(); kp1.delete(); des1.delete();
-        kp2.delete(); des2.delete(); orb.delete(); bf.delete(); matches.delete();
-        mat1.delete(); mat2.delete();
-        return;
-    }
+    // 4. 기준 이미지에 없고 현재 이미지에만 있는 부분
+    const newOnly = new cv.Mat();
+    cv.bitwise_and(bin2, cv.bitwise_not(bin1), newOnly);
 
-    // 6. 호모그래피 계산
-    const pts1 = new Float32Array(good.length * 2), pts2 = new Float32Array(good.length * 2);
-    for (let i = 0; i < good.length; i++) {
-        const m = good[i];
-        const p1 = kp1.get(m.trainIdx).pt, p2 = kp2.get(m.queryIdx).pt;
-        pts1[2*i]=p1.x; pts1[2*i+1]=p1.y;
-        pts2[2*i]=p2.x; pts2[2*i+1]=p2.y;
-    }
-    const matPts1 = cv.matFromArray(good.length, 1, cv.CV_32FC2, pts1);
-    const matPts2 = cv.matFromArray(good.length, 1, cv.CV_32FC2, pts2);
-    const H = cv.findHomography(matPts2, matPts1, cv.RANSAC, 3.0);
+    // 5. 노이즈 제거
+    const kernel = cv.Mat.ones(3, 3, cv.CV_8U);
+    cv.morphologyEx(newOnly, newOnly, cv.MORPH_OPEN, kernel);
+    kernel.delete();
 
-    // 7. 두 번째 이미지 정렬
-    const aligned = new cv.Mat();
-    cv.warpPerspective(mat2, aligned, H, new cv.Size(mat1.cols, mat1.rows));
-
-    // 8. 차이 → 이진화
-    const diff = new cv.Mat(), grayDiff = new cv.Mat();
-    cv.absdiff(mat1, aligned, diff);
-    cv.cvtColor(diff, grayDiff, cv.COLOR_RGBA2GRAY);
-    const mask = new cv.Mat();
-    cv.threshold(grayDiff, mask, 50, 255, cv.THRESH_BINARY);
-
-    // --- 여기부터 추가된 부분: Region Mask 생성 & 결합 ---
-    // 9.1. aligned된 영역만 흰색(255)이 되는 마스크 생성
-    const alignedGray = new cv.Mat();
-    cv.cvtColor(aligned, alignedGray, cv.COLOR_RGBA2GRAY);
-    const regionMask = new cv.Mat();
-    cv.threshold(alignedGray, regionMask, 0, 255, cv.THRESH_BINARY);
-    alignedGray.delete();
-
-    // 9.2. 두 마스크(bitwise AND): 차이는 mask, 영역은 regionMask
-    cv.bitwise_and(mask, regionMask, mask);
-    regionMask.delete();
-    // --- 여기까지 ---
-
-    // 10. 결과 하이라이트 (오직 mask 안에서만)
-    const result = mat1.clone();
-    for (let y = 0; y < mask.rows; y++) {
-        for (let x = 0; x < mask.cols; x++) {
-            if (mask.ucharPtr(y, x)[0] > 0) {
+    // 6. 빨간색 덧입히기
+    const result = mat2.clone();
+    for (let y = 0; y < newOnly.rows; y++) {
+        for (let x = 0; x < newOnly.cols; x++) {
+            if (newOnly.ucharPtr(y, x)[0] > 0) {
                 const p = result.ucharPtr(y, x);
                 p[0] = 255; // R
                 p[1] = 0;   // G
@@ -279,23 +232,20 @@ self.onmessage = async ({ data }) => {
         }
     }
 
-    // 11. 결과 전송
+    // 7. 결과 전송
     const out = new Uint8ClampedArray(result.data);
     self.postMessage(
         { success: true, result: { width: result.cols, height: result.rows, data: out.buffer } },
         [out.buffer]
     );
 
-    // 12. 메모리 해제
+    // 8. 메모리 정리
     mat1.delete(); mat2.delete();
     gray1.delete(); gray2.delete();
-    kp1.delete(); des1.delete(); kp2.delete(); des2.delete();
-    orb.delete(); bf.delete(); matches.delete();
-    matPts1.delete(); matPts2.delete(); H.delete();
-    aligned.delete(); diff.delete(); grayDiff.delete(); mask.delete();
-    result.delete();
+    bin1.delete(); bin2.delete();
+    newOnly.delete(); result.delete();
 };
-      `;
+`;
 
       const blob = new Blob([code], { type: "application/javascript" });
       const url = URL.createObjectURL(blob);

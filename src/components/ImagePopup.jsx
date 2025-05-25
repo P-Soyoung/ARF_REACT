@@ -32,59 +32,52 @@ const ImagePopup = ({ imageUrl, description, onClose, metadata }) => {
 
   // 이미지 분석 모드 토글
   const toggleAnalysisMode = () => {
-    if (!firstImageUrl) return;
-
-    const next = !analysisMode;
-    setAnalysisMode(next);
-
-    if (next) {
-      // 분석 모드 켤 때 매번 재분석하도록 함 (확실한 실행)
-      processImages();
-    } else {
-      // 분석 모드 끌 때 결과 초기화 (선택 사항)
-      // setAlignedImageUrl(null);
+    if (firstImageUrl) {
+      setAnalysisMode(!analysisMode);
+      if (!analysisMode && !alignedImageUrl) {
+        processImages();
+      }
     }
-
-    // 비교 모드 끔
-    setCompareMode(false);
   };
 
   // OpenCV를 사용하여 이미지 비교 처리
   const processImages = async () => {
-    if (!firstImageUrl || !imageUrl) return;
+    if (!firstImageUrl || !imageUrl) {
+      console.warn("⚠️ 분석할 이미지 URL이 없습니다");
+      return;
+    }
 
     setIsProcessing(true);
     setProcessingStatus("이미지 분석 중...");
 
     try {
-      // 동적으로 ImageAligner 모듈 로드
+      console.log("✅ processImages() 시작됨");
       const ImageAlignerModule = await import("./ImageAligner").catch(
         () => null
       );
       if (!ImageAlignerModule) {
+        console.error("❌ ImageAligner 모듈 로딩 실패");
         throw new Error("ImageAligner 모듈을 로드할 수 없습니다.");
       }
 
       const ImageAligner = ImageAlignerModule.default;
+      console.log("✅ ImageAligner 모듈 로딩 성공");
 
-      // DOM에 임시 요소 생성
+      // temp div
       const tempDiv = document.createElement("div");
       document.body.appendChild(tempDiv);
 
-      // React 컴포넌트 생성 및 렌더링
       const aligner = document.createElement("div");
       tempDiv.appendChild(aligner);
 
-      // 처리 완료 콜백
       const handleProcessed = (resultImageUrl) => {
+        console.log("✅ 분석 결과 수신:", resultImageUrl);
         setAlignedImageUrl(resultImageUrl);
         setIsProcessing(false);
         setProcessingStatus("");
-        // 임시 요소 제거
         document.body.removeChild(tempDiv);
       };
 
-      // React 요소 생성 및 렌더링
       const { createRoot } = await import("react-dom/client");
       const root = createRoot(aligner);
       root.render(
@@ -96,7 +89,7 @@ const ImagePopup = ({ imageUrl, description, onClose, metadata }) => {
         />
       );
     } catch (error) {
-      console.error("이미지 분석 오류:", error);
+      console.error("❌ 이미지 분석 오류:", error);
       setIsProcessing(false);
       setProcessingStatus("이미지 분석 중 오류가 발생했습니다.");
     }
@@ -157,7 +150,6 @@ const ImagePopup = ({ imageUrl, description, onClose, metadata }) => {
               </p>
             </div>
           ) : analysisMode && alignedImageUrl ? (
-            // 분석 모드 - 균열 차이 강조 표시
             <div className={styles.analysisContainer}>
               <img
                 src={alignedImageUrl}
@@ -165,8 +157,14 @@ const ImagePopup = ({ imageUrl, description, onClose, metadata }) => {
                 className={styles.popupImage}
               />
             </div>
+          ) : analysisMode && !alignedImageUrl ? (
+            <div className={styles.analysisError}>
+              분석 결과를 불러오지 못했습니다. (이미지 정렬 실패 또는 매칭
+              포인트 부족)
+            </div>
           ) : compareMode ? (
-            // 단순 비교 모드 - 두 이미지 나란히 표시
+            // 비교 모드...
+
             <div className={styles.compareContainer}>
               <div className={styles.compareImageWrapper}>
                 <img
@@ -202,8 +200,8 @@ const ImagePopup = ({ imageUrl, description, onClose, metadata }) => {
         <div className={styles.popupFooter}>
           {analysisMode && alignedImageUrl && (
             <div className={styles.analysisCaption}>
-              <span className={styles.newCrackIndicator}></span> 새로 생긴 균열
-              또는 확장된 부분
+              <span className={styles.newCrackIndicator}></span> 첫 관측 대비
+              변화를 보이는 부분
             </div>
           )}
           {hasFirstImage && (

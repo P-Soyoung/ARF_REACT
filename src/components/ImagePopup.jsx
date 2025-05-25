@@ -2,37 +2,40 @@ import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import styles from "./ImagePopup.module.css";
 
-/**
- * 이미지 팝업 컴포넌트
- *
- * 이미지를 클릭했을 때 팝업으로 확대하여 보여주는 컴포넌트입니다.
- * React Portal을 사용하여 DOM 최상위에 렌더링됩니다.
- */
+// ✅ S3 URL → Netlify 프록시 경로로 변환
+function applyProxy(url) {
+  if (!url) return null;
+  return url.replace(
+    "https://arc-risk-finder.s3.ap-northeast-2.amazonaws.com",
+    "/proxy-image"
+  );
+}
+
 const ImagePopup = ({ imageUrl, description, onClose, metadata }) => {
   const [compareMode, setCompareMode] = useState(false);
   const [analysisMode, setAnalysisMode] = useState(false);
   const [alignedImageUrl, setAlignedImageUrl] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState("");
-  const firstImageUrl = metadata?.firstImageUrl || null;
+
+  // ✅ 프록시 경로로 변환한 이미지 URL 사용
+  const proxiedCurrentImage = applyProxy(imageUrl);
+  const proxiedFirstImage = applyProxy(metadata?.firstImageUrl || null);
+  const hasFirstImage = Boolean(proxiedFirstImage);
+
   const alignerRef = useRef(null);
   const contentRef = useRef(null);
 
-  // 이미지 URL이 유효한지 확인
-  const hasFirstImage = Boolean(firstImageUrl);
-
-  // 이미지 비교 모드 토글
   const toggleCompareMode = () => {
-    if (firstImageUrl) {
+    if (hasFirstImage) {
       setCompareMode(!compareMode);
       setAnalysisMode(false);
       setAlignedImageUrl(null);
     }
   };
 
-  // 이미지 분석 모드 토글
   const toggleAnalysisMode = () => {
-    if (firstImageUrl) {
+    if (hasFirstImage) {
       setAnalysisMode(!analysisMode);
       if (!analysisMode && !alignedImageUrl) {
         processImages();
@@ -40,9 +43,8 @@ const ImagePopup = ({ imageUrl, description, onClose, metadata }) => {
     }
   };
 
-  // OpenCV를 사용하여 이미지 비교 처리
   const processImages = async () => {
-    if (!firstImageUrl || !imageUrl) {
+    if (!proxiedFirstImage || !proxiedCurrentImage) {
       console.warn("⚠️ 분석할 이미지 URL이 없습니다");
       return;
     }
@@ -51,19 +53,13 @@ const ImagePopup = ({ imageUrl, description, onClose, metadata }) => {
     setProcessingStatus("이미지 분석 중...");
 
     try {
-      console.log("✅ processImages() 시작됨");
       const ImageAlignerModule = await import("./ImageAligner").catch(
         () => null
       );
-      if (!ImageAlignerModule) {
-        console.error("❌ ImageAligner 모듈 로딩 실패");
+      if (!ImageAlignerModule)
         throw new Error("ImageAligner 모듈을 로드할 수 없습니다.");
-      }
-
       const ImageAligner = ImageAlignerModule.default;
-      console.log("✅ ImageAligner 모듈 로딩 성공");
 
-      // temp div
       const tempDiv = document.createElement("div");
       document.body.appendChild(tempDiv);
 
@@ -71,7 +67,6 @@ const ImagePopup = ({ imageUrl, description, onClose, metadata }) => {
       tempDiv.appendChild(aligner);
 
       const handleProcessed = (resultImageUrl) => {
-        console.log("✅ 분석 결과 수신:", resultImageUrl);
         setAlignedImageUrl(resultImageUrl);
         setIsProcessing(false);
         setProcessingStatus("");
@@ -82,8 +77,8 @@ const ImagePopup = ({ imageUrl, description, onClose, metadata }) => {
       const root = createRoot(aligner);
       root.render(
         <ImageAligner
-          firstImageUrl={firstImageUrl}
-          currentImageUrl={imageUrl}
+          firstImageUrl={proxiedFirstImage}
+          currentImageUrl={proxiedCurrentImage}
           onProcessed={handleProcessed}
           ref={alignerRef}
         />
@@ -95,31 +90,22 @@ const ImagePopup = ({ imageUrl, description, onClose, metadata }) => {
     }
   };
 
-  // 컴포넌트 언마운트 시 정리
   useEffect(() => {
     return () => {
-      if (alignerRef.current && alignerRef.current.abort) {
-        alignerRef.current.abort();
-      }
+      if (alignerRef.current?.abort) alignerRef.current.abort();
     };
   }, []);
 
-  // ESC 키로 팝업 닫기
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === "Escape") {
-        onClose();
-      }
+      if (e.key === "Escape") onClose();
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  // 균열 폭 정보 추출
   const crackWidth = metadata?.width || metadata?.crackWidth || null;
 
-  // 팝업 내용
   const popup = (
     <div className={styles.popupOverlay} onClick={onClose}>
       <div
@@ -159,16 +145,13 @@ const ImagePopup = ({ imageUrl, description, onClose, metadata }) => {
             </div>
           ) : analysisMode && !alignedImageUrl ? (
             <div className={styles.analysisError}>
-              분석 결과를 불러오지 못했습니다. (이미지 정렬 실패 또는 매칭
-              포인트 부족)
+              분석 결과를 불러오지 못했습니다. (정렬 실패 또는 매칭 부족)
             </div>
           ) : compareMode ? (
-            // 비교 모드...
-
             <div className={styles.compareContainer}>
               <div className={styles.compareImageWrapper}>
                 <img
-                  src={firstImageUrl}
+                  src={proxiedFirstImage}
                   alt="첫 관측 이미지"
                   className={styles.compareImage}
                 />
@@ -178,7 +161,7 @@ const ImagePopup = ({ imageUrl, description, onClose, metadata }) => {
               </div>
               <div className={styles.compareImageWrapper}>
                 <img
-                  src={imageUrl}
+                  src={proxiedCurrentImage}
                   alt={description}
                   className={styles.compareImage}
                 />
@@ -188,9 +171,8 @@ const ImagePopup = ({ imageUrl, description, onClose, metadata }) => {
               </div>
             </div>
           ) : (
-            // 일반 모드 - 현재 이미지만 표시
             <img
-              src={imageUrl}
+              src={proxiedCurrentImage}
               alt={description}
               className={styles.popupImage}
             />
@@ -231,7 +213,6 @@ const ImagePopup = ({ imageUrl, description, onClose, metadata }) => {
     </div>
   );
 
-  // createPortal을 사용하여 DOM 최상위에 렌더링
   return createPortal(popup, document.body);
 };
 

@@ -11,6 +11,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
       },
+      "/proxy-image": {
+        target: "https://arc-risk-finder.s3.ap-northeast-2.amazonaws.com",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/proxy-image/, ""),
+      },
     },
   },
 });

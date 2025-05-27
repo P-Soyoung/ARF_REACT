@@ -29,7 +29,7 @@ export default function Sidebar() {
           location.pathname.startsWith("/building/") ? styles.active : ""
         }`}
       >
-        <Link to="/building/1">
+        <Link to="/building/27">
           <img src="/buildings.svg" alt="건물 통계" title="건물 통계" />
         </Link>
       </div>

@@ -24,7 +24,7 @@ function BuildingCard({ building }) {
     담헌실학관: "/damhun.png",
     "다산 정보관": "/dasan.png",
     "공학 2관": "/gong2.png",
-    "제4 신부교": "/shin4.png",
+    "제4 신부교": "/shin4_2.png",
     천안대교: "/chdag.png",
   };
 

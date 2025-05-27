@@ -16,11 +16,19 @@ function SummaryCard({ title, value }) {
   );
 }
 
-// 건물 카드 컴포넌트
 function BuildingCard({ building }) {
-  // 건물의 웨이포인트와 균열 정보 확인
   const waypoints = building.waypoints || [];
   const cracks = [];
+
+  const buildingImageMap = {
+    담헌실학관: "/damhun.png",
+    "다산 정보관": "/dasan.png",
+    "공학 2관": "/gong2.png",
+    "제4 신부교": "/shin4.png",
+    천안대교: "/chdag.png",
+  };
+
+  const imageFile = buildingImageMap[building.name] || "/default.jpg";
 
   // 모든 웨이포인트의 모든 균열 정보 수집
   waypoints.forEach((waypoint) => {
@@ -80,15 +88,14 @@ function BuildingCard({ building }) {
       </div>
 
       <div className={styles.imagePlaceholder}>
-        {building.thumbnail ? (
-          <img
-            src={building.thumbnail}
-            alt={`${building.name} 균열 확장 이미지`}
-            className={styles.buildingImage}
-          />
-        ) : (
-          "[균열 확장 이미지]"
-        )}
+        <img
+          src={imageFile}
+          alt={`${building.name} 균열 확장 이미지`}
+          className={styles.buildingImage}
+          onError={(e) => {
+            e.target.src = "/default.jpg";
+          }}
+        />
       </div>
 
       <div className={styles.infoBottom}>
